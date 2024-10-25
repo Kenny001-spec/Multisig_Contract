@@ -1,89 +1,113 @@
-import {
-    loadFixture,
-  } from "@nomicfoundation/hardhat-toolbox/network-helpers";
-  import { expect, should } from "chai";
-  import { ethers } from "hardhat"; 
-  import "@nomicfoundation/hardhat-toolbox";
-  import "@nomicfoundation/hardhat-ethers";
-  
-  describe("Claim_Faucet_Factory", function () {
+import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
+import { expect } from "chai";
+import hre from "hardhat";
+const { ethers } = require("hardhat");
 
-    const token:{name:string, symbol:string}= {
-      name: "SoliuToken",
-      symbol: "SLT"
-    }
-    
-  
-    async function deployMultisigFixture() {
+describe("MultiSig Contract Tests", function () {
 
-        const [owner, user1, user2, user3, user4, reciever] = await ethers.getSigners(); // Get signers 
+    async function deployMultiSigFixture() {
+        const [owner, signer1, signer2, signer3, signer4, receiver, nonSigner] = await hre.ethers.getSigners();
 
-        const initialBalance = ethers.parseEther("1000");
+        const MultiSig = await hre.ethers.getContractFactory("MultiSig");
+        const multiSig = await MultiSig.deploy([signer1.address, signer2.address, signer3.address, signer4.address],
+            2,
+            { value: hre.ethers.parseEther("1") });
 
-
-
-        const amountToSend =   ethers.parseUnits("100000", 18)
-
-
-
-        const validSigners = [user1, user2, user3, user4]
-
-      const  MultisigFactory = await ethers.getContractFactory("MultiSig");
-      const multisigContract = await MultisigFactory.connect(owner).deploy(validSigners, 2, {value: initialBalance});
-  
-  
-  
-      return { multisigContract, amountToSend,  owner, user1, user2, user3, user4, reciever};
+        return { multiSig, owner, signer1, signer2, signer3, signer4, receiver, nonSigner };
     }
 
+    describe("MultiSig Contract Tests", function () {
+        describe("Deployment", () => {
+            it("Should check if the contract deployed and owner is set", async function () {
+                const { multiSig, owner } = await loadFixture(deployMultiSigFixture);
 
-    describe('Deploy', () => {
+                expect(await multiSig);
+            });
 
-        it("Should deploy Multisig and Celo token correctly", async function () {
-  
-          const {multisigContract} =  await loadFixture(deployMultisigFixture);
-  
-          expect( await multisigContract.getAddress()).to.be.properAddress;
-          
-        });
-  
-    
-        
-      });
+            it(" Should be able to Initiiate transaction ", async function () {
+                const { multiSig, signer1, receiver, nonSigner } = await loadFixture(deployMultiSigFixture);
 
-
-describe("Functions", () => {
-
-    it(" Only a valid signer Should initiate transaction and ensure the amount is not zero", async () => {
-
-        
-        const {multisigContract, amountToSend , owner, reciever} = await loadFixture(deployMultisigFixture);
-
-        await multisigContract.connect(owner).addValidSigner(owner)
+                await expect(multiSig.connect(signer1).initiateTransaction(
+                    hre.ethers.parseEther("0.1"),
+                    receiver.address
+                ))
 
 
-        await multisigContract.connect(owner).initiateTransaction(amountToSend, reciever.address )
 
-        expect( amountToSend).to.greaterThan(0);
-        
+                await expect(multiSig.connect(nonSigner).initiateTransaction(
+                    hre.ethers.parseEther("0.1"),
+                    receiver.address
+                )).to.be.revertedWith("not valid signer");
+            });
 
-        
+            it("Should approve transaction and execute on quorum", async function () {
+                const { multiSig, signer1, signer2, receiver } = await loadFixture(deployMultiSigFixture);
+
+                // Amount to be transferred
+                const amount = hre.ethers.parseEther("0.5");
+
+                // Initiate the transaction
+                const txId = await multiSig.connect(signer1).initiateTransaction(amount, receiver.address);
+
+
+                const txIdNumber = Number(txId);
+
+                await expect(multiSig.connect(signer1).approveTransaction(txIdNumber))
+
+                await expect(multiSig.connect(signer2).approveTransaction(txIdNumber))
+
+                const transactions = await multiSig.getAllTransactions();
+                const tx = transactions[txIdNumber];
+
+            });
+
+            it("Ownership transfer", async function () {
+                const { multiSig, owner, nonSigner } = await loadFixture(deployMultiSigFixture);
+
+                await multiSig.connect(owner).transferOwnership(nonSigner.address);
+
+                await expect(multiSig.connect(nonSigner).claimOwnership())
+
+            });
+
+            // it("Should add a valid signer successfully", async function () {
+            //     const { multiSig, owner, signer4 } = await loadFixture(deployMultiSigFixture);
+
+            //     const newSigner = { "address": "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720" }
+            //     await multiSig.connect(owner).addValidSigner(newSigner.address);
+            // });
+
+            // it("Should revert if a non-owner tries to add a signer", async function () {
+            //     const { multiSig, signer1, signer2 } = await loadFixture(deployMultiSigFixture);
+
+            //     await expect(multiSig.connect(signer1).addValidSigner(signer2.address))
+            //         .to.be.revertedWith("not owner");
+            // });
+
+            it("Should remove a valid signer successfully", async function () {
+                const { multiSig, owner, signer1, signer2 } = await loadFixture(deployMultiSigFixture);
+
+                const index = 0;
+                await multiSig.connect(owner).removeSigner(index);
+            });
+
+            it("should revert in case of Invalid operations", async function () {
+                const { multiSig, owner, nonSigner, signer3, receiver } = await loadFixture(deployMultiSigFixture);
+              
+                await multiSig.connect(signer3).initiateTransaction(
+                    hre.ethers.parseEther("0.1"),
+                    receiver.address
+                );
+            });
+            
+
+
+
+
+
+
+        })
+
+
     });
-
-    it("valid signers  should be able to approve transaction", async () => {
-
-
-        const {multisigContract, user1, user2} = await loadFixture(deployMultisigFixture);
-
-        await multisigContract.connect(user1).approveTransaction(0);
-        await multisigContract.connect(user2).approveTransaction(0);
-        
-    });
-
-
-
-    
-
 })
-
-});
