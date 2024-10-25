@@ -43,10 +43,10 @@ describe("MultiSig Contract Tests", function () {
             it("Should approve transaction and execute on quorum", async function () {
                 const { multiSig, signer1, signer2, receiver } = await loadFixture(deployMultiSigFixture);
 
-                // Amount to be transferred
+        
                 const amount = hre.ethers.parseEther("0.5");
 
-                // Initiate the transaction
+           
                 const txId = await multiSig.connect(signer1).initiateTransaction(amount, receiver.address);
 
 
@@ -70,19 +70,7 @@ describe("MultiSig Contract Tests", function () {
 
             });
 
-            // it("Should add a valid signer successfully", async function () {
-            //     const { multiSig, owner, signer4 } = await loadFixture(deployMultiSigFixture);
-
-            //     const newSigner = { "address": "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720" }
-            //     await multiSig.connect(owner).addValidSigner(newSigner.address);
-            // });
-
-            // it("Should revert if a non-owner tries to add a signer", async function () {
-            //     const { multiSig, signer1, signer2 } = await loadFixture(deployMultiSigFixture);
-
-            //     await expect(multiSig.connect(signer1).addValidSigner(signer2.address))
-            //         .to.be.revertedWith("not owner");
-            // });
+            
 
             it("Should remove a valid signer successfully", async function () {
                 const { multiSig, owner, signer1, signer2 } = await loadFixture(deployMultiSigFixture);
